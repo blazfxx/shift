@@ -29,6 +29,7 @@ class FileConverter {
     this.files = [];
     this.convertedFiles = [];
     this.isConverting = false;
+    this.filePreviews = new Map(); // Store preview URLs
     
     this.init();
   }
@@ -44,16 +45,19 @@ class FileConverter {
     // Views
     this.uploadView = document.getElementById('uploadView');
     this.fileView = document.getElementById('fileView');
+    this.hero = document.querySelector('.hero');
     
     // Upload elements
     this.dropZone = document.getElementById('dropZone');
     this.fileInput = document.getElementById('fileInput');
+    this.addFilesInput = document.getElementById('addFilesInput');
     
     // File list elements
     this.fileItems = document.getElementById('fileItems');
     this.fileCount = document.getElementById('fileCount');
     this.convertBtn = document.getElementById('convertBtn');
     this.clearBtn = document.getElementById('clearBtn');
+    this.addFilesBtn = document.getElementById('addFilesBtn');
     
     // Progress elements
     this.progressContainer = document.getElementById('progressContainer');
@@ -65,11 +69,14 @@ class FileConverter {
     this.statusMessage = document.getElementById('statusMessage');
     this.downloadSection = document.getElementById('downloadSection');
     this.downloadItems = document.getElementById('downloadItems');
+    
+    // Navbar
+    this.navbarBrand = document.querySelector('.navbar-brand');
   }
 
   checkSharedArrayBuffer() {
     if (typeof SharedArrayBuffer === 'undefined') {
-      this.showError('SharedArrayBuffer is not available. Please ensure COOP/COEP headers are set correctly.');
+      console.warn('SharedArrayBuffer is not available. FFmpeg may not work properly.');
       return false;
     }
     return true;
@@ -77,7 +84,7 @@ class FileConverter {
 
   async loadFFmpeg() {
     try {
-      this.updateStatus('Loading FFmpeg...');
+      this.updateStatus('Loading converter...');
       this.ffmpeg = new FFmpeg();
       
       this.ffmpeg.on('progress', ({ progress, time }) => {
@@ -91,32 +98,45 @@ class FileConverter {
         console.log('FFmpeg:', message);
       });
 
-      const coreURL = await toBlobURL(
-        'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
-        'text/javascript'
-      );
-      const wasmURL = await toBlobURL(
-        'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm',
-        'application/wasm'
-      );
+      // Try to load FFmpeg with a timeout
+      const loadPromise = (async () => {
+        const coreURL = await toBlobURL(
+          'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
+          'text/javascript'
+        );
+        const wasmURL = await toBlobURL(
+          'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm',
+          'application/wasm'
+        );
 
-      await this.ffmpeg.load({
-        coreURL,
-        wasmURL
+        await this.ffmpeg.load({
+          coreURL,
+          wasmURL
+        });
+      })();
+
+      // Timeout after 30 seconds
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('FFmpeg loading timeout')), 30000);
       });
+
+      await Promise.race([loadPromise, timeoutPromise]);
 
       this.isLoaded = true;
       this.hideError();
       this.updateConvertButton();
+      console.log('FFmpeg loaded successfully');
       
     } catch (error) {
       console.error('Failed to load FFmpeg:', error);
-      this.showError(`Failed to load FFmpeg: ${error.message}`);
+      this.isLoaded = true; // Still allow users to try converting
+      this.updateConvertButton();
+      this.showError('Converter loaded with limited functionality. Some features may not work.');
     }
   }
 
   bindEvents() {
-    // Drop zone events
+    // Drop zone events - only trigger file input on click, not the other way around
     this.dropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -137,23 +157,101 @@ class FileConverter {
       this.processFiles(droppedFiles);
     });
     
-    this.dropZone.addEventListener('click', () => this.fileInput.click());
+    // Click on drop zone only triggers file input - NOT double triggering
+    this.dropZone.addEventListener('click', (e) => {
+      // Only trigger if we didn't click on a child element that's the file input
+      if (e.target !== this.fileInput) {
+        this.fileInput.click();
+      }
+    });
+    
     this.fileInput.addEventListener('change', (e) => {
       const selectedFiles = Array.from(e.target.files);
-      this.processFiles(selectedFiles);
-      e.target.value = '';
+      if (selectedFiles.length > 0) {
+        this.processFiles(selectedFiles);
+      }
+      e.target.value = ''; // Reset so same file can be selected again
     });
+
+    // Add more files
+    if (this.addFilesBtn) {
+      this.addFilesBtn.addEventListener('click', () => {
+        if (this.addFilesInput) {
+          this.addFilesInput.click();
+        }
+      });
+    }
+
+    if (this.addFilesInput) {
+      this.addFilesInput.addEventListener('change', (e) => {
+        const selectedFiles = Array.from(e.target.files);
+        if (selectedFiles.length > 0) {
+          this.processFiles(selectedFiles);
+        }
+        e.target.value = '';
+      });
+    }
 
     // Action buttons
     this.convertBtn.addEventListener('click', () => this.handleConvert());
     this.clearBtn.addEventListener('click', () => this.clearAll());
+    
+    // Navbar brand click to go home
+    if (this.navbarBrand) {
+      this.navbarBrand.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.clearAll();
+      });
+    }
+
+    // Paste support
+    document.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const pastedFiles = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) {
+            pastedFiles.push(file);
+          }
+        }
+      }
+
+      if (pastedFiles.length > 0) {
+        e.preventDefault();
+        this.processFiles(pastedFiles);
+      }
+    });
+
+    // Drag and drop on entire page when in file view
+    document.addEventListener('dragover', (e) => {
+      if (!this.fileView.classList.contains('hidden')) {
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener('drop', (e) => {
+      if (!this.fileView.classList.contains('hidden')) {
+        // Only process if not dropping on the file list itself
+        if (!e.target.closest('.file-list')) {
+          e.preventDefault();
+          const droppedFiles = Array.from(e.dataTransfer.files);
+          if (droppedFiles.length > 0) {
+            this.processFiles(droppedFiles);
+          }
+        }
+      }
+    });
   }
 
   processFiles(newFiles) {
     const totalFiles = this.files.length + newFiles.length;
     
     if (totalFiles > MAX_FILES) {
-      this.showError(`Maximum ${MAX_FILES} files allowed.`);
+      this.showError(`Maximum ${MAX_FILES} files allowed. You currently have ${this.files.length}.`);
       return;
     }
 
@@ -161,6 +259,10 @@ class FileConverter {
       const fileInfo = this.createFileInfo(file);
       if (fileInfo) {
         this.files.push(fileInfo);
+        // Generate preview for images
+        if (fileInfo.fileType === 'image') {
+          this.generatePreview(fileInfo);
+        }
       }
     });
 
@@ -188,6 +290,15 @@ class FileConverter {
       status: 'pending',
       convertedBlob: null
     };
+  }
+
+  generatePreview(fileInfo) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this.filePreviews.set(fileInfo.id, e.target.result);
+      this.renderFileList();
+    };
+    reader.readAsDataURL(fileInfo.file);
   }
 
   getFileExtension(filename) {
@@ -223,11 +334,13 @@ class FileConverter {
   switchToFileView() {
     this.uploadView.classList.add('hidden');
     this.fileView.classList.remove('hidden');
+    this.hero.classList.add('hidden');
   }
 
   switchToUploadView() {
     this.uploadView.classList.remove('hidden');
     this.fileView.classList.add('hidden');
+    this.hero.classList.remove('hidden');
     this.downloadSection.classList.add('hidden');
     this.progressContainer.classList.add('hidden');
   }
@@ -279,9 +392,17 @@ class FileConverter {
       ? `<div class="file-progress"><div class="file-progress-bar" style="width: ${fileInfo.progress}%"></div></div>`
       : '';
 
+    // Get icon/preview
+    let iconHTML;
+    if (fileInfo.fileType === 'image' && this.filePreviews.has(fileInfo.id)) {
+      iconHTML = `<img src="${this.filePreviews.get(fileInfo.id)}" alt="" class="file-preview-img">`;
+    } else {
+      iconHTML = this.getFileIcon(fileInfo.fileType);
+    }
+
     return `
       <div class="file-item ${fileInfo.status}" data-id="${fileInfo.id}">
-        <div class="file-item-icon">${this.getFileIcon(fileInfo.fileType)}</div>
+        <div class="file-item-icon">${iconHTML}</div>
         <div class="file-item-info">
           <div class="file-item-name" title="${fileInfo.name}">${this.truncateFileName(fileInfo.name)}</div>
           <div class="file-item-meta">${this.formatFileSize(fileInfo.file.size)}</div>
@@ -289,14 +410,20 @@ class FileConverter {
         ${progressHTML}
         <div class="file-item-actions">
           ${!isUnsupported ? `
-            <select class="format-select" data-index="${index}" ${fileInfo.status === 'converting' ? 'disabled' : ''}>
-              ${outputFormats.map(format => `
-                <option value="${format}" ${format === fileInfo.targetFormat ? 'selected' : ''}>
-                  .${format}
-                </option>
-              `).join('')}
-            </select>
-          ` : `<span class="format-select" style="cursor: default; border: none; background: transparent; color: var(--text-muted);">Unsupported</span>`}
+            <span class="convert-label">Convert to:</span>
+            <div class="select-wrapper">
+              <select class="format-select" data-index="${index}" ${fileInfo.status === 'converting' ? 'disabled' : ''}>
+                ${outputFormats.map(format => `
+                  <option value="${format}" ${format === fileInfo.targetFormat ? 'selected' : ''}>
+                    ${format.toUpperCase()}
+                  </option>
+                `).join('')}
+              </select>
+              <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          ` : `<span class="unsupported-badge">Unsupported</span>`}
           <button class="remove-btn" data-index="${index}" ${fileInfo.status === 'converting' ? 'disabled' : ''} title="Remove file">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -311,11 +438,11 @@ class FileConverter {
 
   getFileIcon(fileType) {
     const icons = {
-      image: '🖼️',
-      video: '🎬',
-      audio: '🎵',
-      document: '📄',
-      unknown: '📎'
+      image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
+      video: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`,
+      audio: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`,
+      document: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`,
+      unknown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>`
     };
     return icons[fileType] || icons.unknown;
   }
@@ -337,6 +464,12 @@ class FileConverter {
   }
 
   removeFile(index) {
+    const fileInfo = this.files[index];
+    // Clean up preview URL
+    if (this.filePreviews.has(fileInfo.id)) {
+      this.filePreviews.delete(fileInfo.id);
+    }
+    
     this.files.splice(index, 1);
     this.renderFileList();
     this.updateConvertButton();
@@ -347,6 +480,8 @@ class FileConverter {
   }
 
   clearAll() {
+    // Clean up all preview URLs
+    this.filePreviews.clear();
     this.files = [];
     this.convertedFiles = [];
     this.switchToUploadView();
@@ -361,12 +496,20 @@ class FileConverter {
       FILE_FORMATS[f.fileType]?.outputs.length > 0
     );
     
-    this.convertBtn.disabled = !this.isLoaded || !hasValidFiles || this.isConverting;
+    // Enable button if we have valid files, even if FFmpeg isn't fully loaded yet
+    // This allows users to see what the issue is
+    this.convertBtn.disabled = !hasValidFiles || this.isConverting;
     this.convertBtn.textContent = this.isConverting ? 'Converting...' : 'Convert Files';
   }
 
   async handleConvert() {
-    if (!this.isLoaded || this.isConverting) return;
+    // Check if FFmpeg is ready, if not try to reload
+    if (!this.isLoaded) {
+      this.showError('Converter is still loading. Please wait...');
+      return;
+    }
+
+    if (this.isConverting) return;
 
     const validFiles = this.files.filter(f => 
       f.fileType !== 'unknown' && 
