@@ -41,16 +41,28 @@ class FileConverter {
   }
 
   cacheElements() {
+    // Views
+    this.uploadView = document.getElementById('uploadView');
+    this.fileView = document.getElementById('fileView');
+    
+    // Upload elements
     this.dropZone = document.getElementById('dropZone');
     this.fileInput = document.getElementById('fileInput');
+    
+    // File list elements
     this.fileItems = document.getElementById('fileItems');
     this.fileCount = document.getElementById('fileCount');
     this.convertBtn = document.getElementById('convertBtn');
+    this.clearBtn = document.getElementById('clearBtn');
+    
+    // Progress elements
     this.progressContainer = document.getElementById('progressContainer');
     this.progressBar = document.getElementById('progressBar');
+    this.progressPercent = document.getElementById('progressPercent');
     this.progressText = document.getElementById('progressText');
+    
+    // Status and download
     this.statusMessage = document.getElementById('statusMessage');
-    this.clearBtn = document.getElementById('clearBtn');
     this.downloadSection = document.getElementById('downloadSection');
     this.downloadItems = document.getElementById('downloadItems');
   }
@@ -94,7 +106,7 @@ class FileConverter {
       });
 
       this.isLoaded = true;
-      this.updateStatus('FFmpeg loaded successfully');
+      this.hideError();
       this.updateConvertButton();
       
     } catch (error) {
@@ -104,47 +116,44 @@ class FileConverter {
   }
 
   bindEvents() {
-    this.dropZone.addEventListener('dragover', this.handleDragOver.bind(this));
-    this.dropZone.addEventListener('dragleave', this.handleDragLeave.bind(this));
-    this.dropZone.addEventListener('drop', this.handleDrop.bind(this));
-    this.dropZone.addEventListener('click', () => this.fileInput.click());
-    this.fileInput.addEventListener('change', this.handleFileSelect.bind(this));
-    this.convertBtn.addEventListener('click', this.handleConvert.bind(this));
-    this.clearBtn.addEventListener('click', this.clearAll.bind(this));
-  }
-
-  handleDragOver(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    this.dropZone.classList.add('dragover');
-  }
-
-  handleDragLeave(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    this.dropZone.classList.remove('dragover');
-  }
-
-  handleDrop(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    this.dropZone.classList.remove('dragover');
+    // Drop zone events
+    this.dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.dropZone.classList.add('drag-active');
+    });
     
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    this.processFiles(droppedFiles);
-  }
+    this.dropZone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.dropZone.classList.remove('drag-active');
+    });
+    
+    this.dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.dropZone.classList.remove('drag-active');
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      this.processFiles(droppedFiles);
+    });
+    
+    this.dropZone.addEventListener('click', () => this.fileInput.click());
+    this.fileInput.addEventListener('change', (e) => {
+      const selectedFiles = Array.from(e.target.files);
+      this.processFiles(selectedFiles);
+      e.target.value = '';
+    });
 
-  handleFileSelect(e) {
-    const selectedFiles = Array.from(e.target.files);
-    this.processFiles(selectedFiles);
-    e.target.value = '';
+    // Action buttons
+    this.convertBtn.addEventListener('click', () => this.handleConvert());
+    this.clearBtn.addEventListener('click', () => this.clearAll());
   }
 
   processFiles(newFiles) {
     const totalFiles = this.files.length + newFiles.length;
     
     if (totalFiles > MAX_FILES) {
-      this.showError(`Maximum ${MAX_FILES} files allowed. You have ${this.files.length} files and tried to add ${newFiles.length} more.`);
+      this.showError(`Maximum ${MAX_FILES} files allowed.`);
       return;
     }
 
@@ -154,6 +163,10 @@ class FileConverter {
         this.files.push(fileInfo);
       }
     });
+
+    if (this.files.length > 0) {
+      this.switchToFileView();
+    }
 
     this.renderFileList();
     this.updateConvertButton();
@@ -204,20 +217,40 @@ class FileConverter {
   getOutputFormats(fileType, currentExtension) {
     const config = FILE_FORMATS[fileType];
     if (!config) return [];
-    
     return config.outputs.filter(f => f !== currentExtension);
+  }
+
+  switchToFileView() {
+    this.uploadView.classList.add('hidden');
+    this.fileView.classList.remove('hidden');
+  }
+
+  switchToUploadView() {
+    this.uploadView.classList.remove('hidden');
+    this.fileView.classList.add('hidden');
+    this.downloadSection.classList.add('hidden');
+    this.progressContainer.classList.add('hidden');
   }
 
   renderFileList() {
     this.fileCount.textContent = `${this.files.length} file${this.files.length !== 1 ? 's' : ''}`;
     
     if (this.files.length === 0) {
-      this.fileItems.innerHTML = '<div class="empty-state"><p>No files selected</p></div>';
+      this.fileItems.innerHTML = `
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+            <polyline points="13 2 13 9 20 9"/>
+          </svg>
+          <p>No files selected</p>
+        </div>
+      `;
       return;
     }
 
     this.fileItems.innerHTML = this.files.map((fileInfo, index) => this.createFileListItem(fileInfo, index)).join('');
     
+    // Bind format select events
     this.fileItems.querySelectorAll('.format-select').forEach(select => {
       select.addEventListener('change', (e) => {
         const index = parseInt(e.target.dataset.index);
@@ -225,17 +258,11 @@ class FileConverter {
       });
     });
 
+    // Bind remove button events
     this.fileItems.querySelectorAll('.remove-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const index = parseInt(e.target.dataset.index);
+        const index = parseInt(e.currentTarget.dataset.index);
         this.removeFile(index);
-      });
-    });
-
-    this.fileItems.querySelectorAll('.download-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const index = parseInt(e.target.dataset.index);
-        this.downloadFile(this.files[index]);
       });
     });
   }
@@ -244,47 +271,42 @@ class FileConverter {
     const outputFormats = this.getOutputFormats(fileInfo.fileType, fileInfo.extension);
     const isUnsupported = fileInfo.fileType === 'unknown' || outputFormats.length === 0;
     
-    const statusIcon = this.getStatusIcon(fileInfo.status);
+    const statusIcon = fileInfo.status === 'completed' ? '✓' : 
+                       fileInfo.status === 'error' ? '✕' : 
+                       fileInfo.status === 'converting' ? '⟳' : '';
+
     const progressHTML = fileInfo.status === 'converting' 
-      ? `<div class="file-progress"><div class="file-progress-bar" style="width: ${fileInfo.progress}%"></div></div>` 
+      ? `<div class="file-progress"><div class="file-progress-bar" style="width: ${fileInfo.progress}%"></div></div>`
       : '';
 
     return `
       <div class="file-item ${fileInfo.status}" data-id="${fileInfo.id}">
-        <div class="file-info">
-          <span class="file-icon">${this.getFileIcon(fileInfo.fileType)}</span>
-          <span class="file-name" title="${fileInfo.name}">${this.truncateFileName(fileInfo.name)}</span>
-          <span class="file-size">${this.formatFileSize(fileInfo.file.size)}</span>
+        <div class="file-item-icon">${this.getFileIcon(fileInfo.fileType)}</div>
+        <div class="file-item-info">
+          <div class="file-item-name" title="${fileInfo.name}">${this.truncateFileName(fileInfo.name)}</div>
+          <div class="file-item-meta">${this.formatFileSize(fileInfo.file.size)}</div>
         </div>
         ${progressHTML}
-        <div class="file-actions">
+        <div class="file-item-actions">
           ${!isUnsupported ? `
             <select class="format-select" data-index="${index}" ${fileInfo.status === 'converting' ? 'disabled' : ''}>
               ${outputFormats.map(format => `
                 <option value="${format}" ${format === fileInfo.targetFormat ? 'selected' : ''}>
-                  ${format.toUpperCase()}
+                  .${format}
                 </option>
               `).join('')}
             </select>
-          ` : `<span class="unsupported">Unsupported format</span>`}
-          <button class="remove-btn" data-index="${index}" ${fileInfo.status === 'converting' ? 'disabled' : ''}>×</button>
-          ${fileInfo.convertedBlob ? `
-            <button class="download-btn" data-index="${index}">↓</button>
-          ` : ''}
-          <span class="status-icon">${statusIcon}</span>
+          ` : `<span class="format-select" style="cursor: default; border: none; background: transparent; color: var(--text-muted);">Unsupported</span>`}
+          <button class="remove-btn" data-index="${index}" ${fileInfo.status === 'converting' ? 'disabled' : ''} title="Remove file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          ${statusIcon ? `<span class="status-icon" style="color: ${fileInfo.status === 'completed' ? 'var(--success)' : fileInfo.status === 'error' ? 'var(--error)' : 'var(--accent)'};">${statusIcon}</span>` : ''}
         </div>
       </div>
     `;
-  }
-
-  getStatusIcon(status) {
-    switch (status) {
-      case 'pending': return '⏳';
-      case 'converting': return '🔄';
-      case 'completed': return '✅';
-      case 'error': return '❌';
-      default: return '';
-    }
   }
 
   getFileIcon(fileType) {
@@ -293,12 +315,12 @@ class FileConverter {
       video: '🎬',
       audio: '🎵',
       document: '📄',
-      unknown: '❓'
+      unknown: '📎'
     };
     return icons[fileType] || icons.unknown;
   }
 
-  truncateFileName(name, maxLength = 30) {
+  truncateFileName(name, maxLength = 35) {
     if (name.length <= maxLength) return name;
     const ext = this.getFileExtension(name);
     const baseName = name.slice(0, name.lastIndexOf('.'));
@@ -307,26 +329,29 @@ class FileConverter {
   }
 
   formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
   removeFile(index) {
     this.files.splice(index, 1);
     this.renderFileList();
     this.updateConvertButton();
+    
+    if (this.files.length === 0) {
+      this.switchToUploadView();
+    }
   }
 
   clearAll() {
     this.files = [];
     this.convertedFiles = [];
+    this.switchToUploadView();
     this.renderFileList();
     this.updateConvertButton();
-    this.downloadSection.style.display = 'none';
-    this.progressContainer.style.display = 'none';
     this.hideError();
   }
 
@@ -337,7 +362,7 @@ class FileConverter {
     );
     
     this.convertBtn.disabled = !this.isLoaded || !hasValidFiles || this.isConverting;
-    this.convertBtn.textContent = this.isConverting ? 'Converting...' : 'Convert';
+    this.convertBtn.textContent = this.isConverting ? 'Converting...' : 'Convert Files';
   }
 
   async handleConvert() {
@@ -357,7 +382,8 @@ class FileConverter {
     this.isConverting = true;
     this.convertedFiles = [];
     this.updateConvertButton();
-    this.showProgress();
+    this.progressContainer.classList.remove('hidden');
+    this.downloadSection.classList.add('hidden');
 
     try {
       for (let i = 0; i < validFiles.length; i++) {
@@ -384,7 +410,6 @@ class FileConverter {
       }
 
       this.updateOverallProgress(validFiles.length, validFiles.length);
-      this.updateStatus(`Converted ${this.convertedFiles.length} of ${validFiles.length} files`);
       
       if (this.convertedFiles.length > 0) {
         this.renderDownloadSection();
@@ -524,9 +549,9 @@ class FileConverter {
   updateFileProgress(index, progress) {
     if (this.files[index]) {
       this.files[index].progress = progress;
-      const progressBar = this.fileItems.querySelectorAll('.file-progress-bar')[index];
-      if (progressBar) {
-        progressBar.style.width = `${progress}%`;
+      const progressBars = this.fileItems.querySelectorAll('.file-progress-bar');
+      if (progressBars[index]) {
+        progressBars[index].style.width = `${progress}%`;
       }
     }
   }
@@ -534,13 +559,31 @@ class FileConverter {
   updateOverallProgress(current, total) {
     const percent = Math.round((current / total) * 100);
     this.progressBar.style.width = `${percent}%`;
+    this.progressPercent.textContent = `${percent}%`;
     this.progressText.textContent = `${current}/${total} files`;
   }
 
-  showProgress() {
-    this.progressContainer.style.display = 'block';
-    this.progressBar.style.width = '0%';
-    this.progressText.textContent = '0/0 files';
+  renderDownloadSection() {
+    this.downloadSection.classList.remove('hidden');
+    this.downloadItems.innerHTML = this.convertedFiles.map(fileInfo => {
+      const baseName = fileInfo.name.slice(0, fileInfo.name.lastIndexOf('.'));
+      return `
+        <div class="download-item">
+          <span class="download-item-name">${baseName}.${fileInfo.targetFormat}</span>
+          <button class="download-btn-small" data-id="${fileInfo.id}">Download</button>
+        </div>
+      `;
+    }).join('');
+
+    this.downloadItems.querySelectorAll('.download-btn-small').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = parseFloat(e.target.dataset.id);
+        const fileInfo = this.convertedFiles.find(f => f.id === id);
+        if (fileInfo) {
+          this.downloadFile(fileInfo);
+        }
+      });
+    });
   }
 
   downloadFile(fileInfo) {
@@ -557,29 +600,6 @@ class FileConverter {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }
-
-  renderDownloadSection() {
-    this.downloadSection.style.display = 'block';
-    this.downloadItems.innerHTML = this.convertedFiles.map(fileInfo => {
-      const baseName = fileInfo.name.slice(0, fileInfo.name.lastIndexOf('.'));
-      return `
-        <div class="download-item">
-          <span class="download-name">${baseName}.${fileInfo.targetFormat}</span>
-          <button class="btn btn-primary download-single-btn" data-id="${fileInfo.id}">Download</button>
-        </div>
-      `;
-    }).join('');
-
-    this.downloadItems.querySelectorAll('.download-single-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = parseFloat(e.target.dataset.id);
-        const fileInfo = this.convertedFiles.find(f => f.id === id);
-        if (fileInfo) {
-          this.downloadFile(fileInfo);
-        }
-      });
-    });
   }
 
   updateStatus(message) {
@@ -604,6 +624,7 @@ class FileConverter {
   }
 }
 
+// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   new FileConverter();
 });
