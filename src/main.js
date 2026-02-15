@@ -98,11 +98,11 @@ class FileConverter {
         console.log('FFmpeg:', message);
       });
 
-      // Try to load FFmpeg with a timeout - using self-hosted files
+      // Try to load FFmpeg with a timeout
+      // Note: WASM file is 30MB which exceeds CF Pages 25MB limit, so we load it from unpkg
       const loadPromise = (async () => {
-        // Use local files instead of unpkg to avoid CORS issues
         const coreURL = 'ffmpeg/ffmpeg-core.js';
-        const wasmURL = 'ffmpeg/ffmpeg-core.wasm';
+        const wasmURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm';
 
         await this.ffmpeg.load({
           coreURL,

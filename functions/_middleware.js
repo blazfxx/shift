@@ -21,8 +21,17 @@ export async function onRequest(context) {
     newResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     newResponse.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
 
-    // CSP disabled for self-hosted FFmpeg - all resources are local
-    // newResponse.headers.set('Content-Security-Policy', csp);
+    // CSP allowing unpkg.com for WASM file (30MB exceeds CF Pages limit)
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "worker-src 'self' blob:",
+      "connect-src 'self' https://unpkg.com",
+      "img-src 'self' data: blob: https:",
+      "media-src 'self' blob:",
+      "style-src 'self' 'unsafe-inline'"
+    ].join('; ');
+    newResponse.headers.set('Content-Security-Policy', csp);
 
     const permissionsPolicy = [
       'accelerometer=()',
