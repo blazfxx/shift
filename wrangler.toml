@@ -1,0 +1,141 @@
+# Wrangler configuration for Cloudflare Pages deployment
+# Documentation: https://developers.cloudflare.com/workers/wrangler/configuration/
+
+name = "convertbox"
+compatibility_date = "2024-01-01"
+
+# ============================================================================
+# PAGES CONFIGURATION
+# ============================================================================
+# This configures the project as a Cloudflare Pages application with functions
+
+[pages]
+# Build output directory where static assets are located
+build_output_dir = "src"
+
+# Root directory for the project
+# Use "." for current directory or specify a subdirectory
+root_dir = "/"
+
+# ============================================================================
+# BUILD CONFIGURATION
+# ============================================================================
+# Uncomment and configure if using a build process (e.g., bundlers, compilers)
+
+# [build]
+# command = "npm run build"
+# watch_dir = "src"
+
+# ============================================================================
+# FUNCTIONS CONFIGURATION
+# ============================================================================
+# Configure Pages Functions for server-side logic
+# Functions should be placed in a 'functions' directory at project root
+
+# [functions]
+# directory = "functions"
+# runtime = "nodejs"  # Options: nodejs, edge
+
+# ============================================================================
+# ENVIRONMENT BINDINGS (PLACEHOLDERS FOR FUTURE USE)
+# ============================================================================
+# These bindings allow your Pages Functions to interact with Cloudflare services
+# Uncomment and configure when ready to use each service
+
+# --- R2 Bucket for Temporary File Storage ---
+# Used for storing uploaded files during conversion process
+# Create bucket first: wrangler r2 bucket create convertbox-temp-files
+
+# [[r2_buckets]]
+# binding = "FILES_BUCKET"
+# bucket_name = "convertbox-temp-files"
+# preview_bucket_name = "convertbox-temp-files-preview"  # For development
+
+# --- KV Namespace for Rate Limiting ---
+# Used for tracking API requests and implementing rate limits
+# Create namespace first: wrangler kv:namespace create RATE_LIMITER
+
+# [[kv_namespaces]]
+# binding = "RATE_LIMITER"
+# id = "your-kv-namespace-id-here"
+# preview_id = "your-preview-kv-namespace-id-here"  # For development
+
+# --- D1 Database for Logging ---
+# Used for storing conversion logs and analytics
+# Create database first: wrangler d1 create convertbox-logs
+
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "convertbox-logs"
+# database_id = "your-d1-database-id-here"
+# preview_database_id = "DB"  # For development (uses local D1)
+
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+# Define environment-specific variables
+
+# [vars]
+# MAX_FILE_SIZE = "10485760"  # 10MB in bytes
+# ALLOWED_FILE_TYPES = "pdf,jpg,png,docx"
+
+# --- Staging Environment ---
+# [env.staging]
+# name = "convertbox-staging"
+# 
+# [env.staging.vars]
+# ENVIRONMENT = "staging"
+
+# --- Production Environment ---
+# [env.production]
+# name = "convertbox"
+# 
+# [env.production.vars]
+# ENVIRONMENT = "production"
+
+# ============================================================================
+# DEVELOPMENT SETTINGS
+# ============================================================================
+# Configuration for local development with wrangler pages dev
+
+[dev]
+port = 8788
+local_protocol = "http"
+
+# ============================================================================
+# PRODUCTION SETTINGS (COMMENTED - CONFIGURE BEFORE DEPLOYMENT)
+# ============================================================================
+# Uncomment and configure these settings before deploying to production
+
+# --- Custom Domains ---
+# [[routes]]
+# pattern = "convertbox.example.com/*"
+# custom_domain = true
+
+# --- Redirect Rules ---
+# [[redirects]]
+# from = "/old-path"
+# to = "/new-path"
+# status = 301
+
+# --- Headers ---
+# [[headers]]
+# for = "/*"
+# [headers.values]
+# X-Frame-Options = "DENY"
+# X-Content-Type-Options = "nosniff"
+# Referrer-Policy = "strict-origin-when-cross-origin"
+
+# ============================================================================
+# DEPLOYMENT NOTES
+# ============================================================================
+# Deploy to Cloudflare Pages:
+#   Production: wrangler pages deploy
+#   Preview:    wrangler pages deploy --branch=<branch-name>
+#
+# View deployed pages:
+#   wrangler pages project list
+#   wrangler pages deployment list --project-name=convertbox
+#
+# Set secrets (sensitive environment variables):
+#   wrangler pages secret put SECRET_NAME --project-name=convertbox

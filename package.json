@@ -1,0 +1,21 @@
+{
+  "name": "convertbox",
+  "version": "1.0.0",
+  "description": "Free file converter - Convert images, videos, and audio in your browser",
+  "scripts": {
+    "dev": "wrangler pages dev src --port 8788",
+    "deploy": "wrangler pages deploy src",
+    "build": "echo 'Static site - no build required'"
+  },
+  "keywords": [
+    "file-converter",
+    "ffmpeg",
+    "wasm",
+    "cloudflare-pages",
+    "free"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": "",
+  "homepage": ""
+}

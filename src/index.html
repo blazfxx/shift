@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Shift - Free online file converter for images, videos, and audio files. Fast, secure, and easy to use.">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:;">
+    <title>Shift - Free Format Converter</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        :root {
+            --bg-color: #0a0a0a;
+            --text-color: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent-color: #ffffff;
+            --card-bg: #1a1a1a;
+            --border-color: #2a2a2a;
+            --success-color: #22c55e;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Shift</h1>
+            <p>Free file converter for images, videos, and audio</p>
+        </header>
+
+        <main>
+            <section class="drop-zone" id="dropZone" aria-label="File upload area">
+                <div class="drop-zone-icon">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                    </svg>
+                </div>
+                <p class="drop-zone-text">Drop files here or click to select</p>
+                <p class="drop-zone-subtext">Supports images, videos, and audio files</p>
+                <input type="file" class="drop-zone-input" id="fileInput" multiple accept="image/*,video/*,audio/*" aria-label="File input">
+            </section>
+
+            <section class="file-list" aria-label="Selected files">
+                <div class="file-list-header">
+                    <h2>Selected Files</h2>
+                    <span class="file-count" id="fileCount">0 files</span>
+                </div>
+                <div class="file-items" id="fileItems">
+                    <div class="empty-state">
+                        <p>No files selected</p>
+                    </div>
+                </div>
+            </section>
+
+            <div id="statusMessage" class="status-message"></div>
+
+            <section class="convert-section">
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-header">
+                        <span class="progress-title">Converting files...</span>
+                        <span class="progress-percent" id="progressPercent">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressBar"></div>
+                    </div>
+                    <p class="progress-status" id="progressText">Initializing...</p>
+                </div>
+
+                <div class="actions">
+                    <button class="btn btn-primary" id="convertBtn" disabled>Convert Files</button>
+                    <button class="btn btn-secondary" id="clearBtn">Clear All</button>
+                </div>
+            </section>
+
+            <section class="download-section" id="downloadSection" style="display: none;">
+                <div class="download-header">
+                    <h3>Conversion Complete</h3>
+                </div>
+                <div class="download-items" id="downloadItems"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Shift - Free Format Converter | Powered by FFmpeg WASM</p>
+        </footer>
+    </div>
+
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
