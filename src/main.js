@@ -98,16 +98,11 @@ class FileConverter {
         console.log('FFmpeg:', message);
       });
 
-      // Try to load FFmpeg with a timeout
+      // Try to load FFmpeg with a timeout - using self-hosted files
       const loadPromise = (async () => {
-        const coreURL = await toBlobURL(
-          'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
-          'text/javascript'
-        );
-        const wasmURL = await toBlobURL(
-          'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm',
-          'application/wasm'
-        );
+        // Use local files instead of unpkg to avoid CORS issues
+        const coreURL = 'ffmpeg/ffmpeg-core.js';
+        const wasmURL = 'ffmpeg/ffmpeg-core.wasm';
 
         await this.ffmpeg.load({
           coreURL,

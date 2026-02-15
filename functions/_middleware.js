@@ -67,8 +67,8 @@ export async function onRequest(context) {
 
     newResponse.headers.set('Permissions-Policy', permissionsPolicy);
 
-    newResponse.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-    newResponse.headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
+    // Note: COEP/COOP removed since we're self-hosting FFmpeg files
+    // This avoids CORP issues with third-party resources
 
     if (path.startsWith('/api/')) {
       const origin = request.headers.get('origin');
@@ -101,9 +101,7 @@ export async function onRequest(context) {
         'X-Frame-Options': 'SAMEORIGIN',
         'X-XSS-Protection': '1; mode=block',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
-        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp'
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload'
       }
     });
 
