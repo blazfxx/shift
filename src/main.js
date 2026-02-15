@@ -547,6 +547,7 @@ class FileConverter {
           console.error(`Failed to convert ${fileInfo.name}:`, error);
           fileInfo.status = 'error';
           fileInfo.error = error.message;
+          this.showError(`Failed to convert ${fileInfo.name}: ${error.message}`);
         }
 
         this.renderFileList();
@@ -554,9 +555,14 @@ class FileConverter {
 
       this.updateOverallProgress(validFiles.length, validFiles.length);
       
-      if (this.convertedFiles.length > 0) {
-        this.renderDownloadSection();
-      }
+      // Small delay to ensure UI updates before showing download section
+      setTimeout(() => {
+        if (this.convertedFiles.length > 0) {
+          this.renderDownloadSection();
+        } else {
+          this.showError('No files were converted successfully. Check console for details.');
+        }
+      }, 100);
 
     } catch (error) {
       console.error('Conversion error:', error);
@@ -707,6 +713,14 @@ class FileConverter {
   }
 
   renderDownloadSection() {
+    console.log('Rendering download section, converted files:', this.convertedFiles.length);
+    
+    if (this.convertedFiles.length === 0) {
+      console.warn('No converted files to display');
+      this.showError('Conversion completed but no files were successfully converted.');
+      return;
+    }
+    
     this.downloadSection.classList.remove('hidden');
     this.downloadItems.innerHTML = this.convertedFiles.map(fileInfo => {
       const baseName = fileInfo.name.slice(0, fileInfo.name.lastIndexOf('.'));
@@ -727,6 +741,9 @@ class FileConverter {
         }
       });
     });
+    
+    // Scroll to download section
+    this.downloadSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   downloadFile(fileInfo) {
