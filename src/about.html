@@ -7,10 +7,24 @@
     <title>About - Shift</title>
     <link rel="stylesheet" href="styles.css">
     <style>
+        /* Allow scrolling on about page */
+        html.about-page, html.about-page body {
+            overflow: auto;
+            height: auto;
+        }
+        
+        html.about-page .app {
+            min-height: 100vh;
+        }
+        
+        html.about-page .main {
+            overflow: visible;
+        }
+        
         .about-content {
             max-width: 700px;
             margin: 0 auto;
-            padding: 2rem 1rem;
+            padding: 2rem 1rem 4rem;
         }
         
         .about-content h2 {
@@ -82,6 +96,7 @@
     </style>
 </head>
 <body>
+    <script>document.documentElement.classList.add('about-page');</script>
     <div class="app">
         <!-- Navbar -->
         <nav class="navbar">
@@ -120,7 +135,7 @@
                 
                 <h2>Who made this?</h2>
                 
-                <p>Hi, I'm <a href="https://boxu.dev" target="_blank">@blazfxx</a>. I make random tools when something annoys me enough. This was one of those times.</p>
+                <p>Hi, I'm <a href="https://github.com/blazfxx" target="_blank">@blazfxx</a>. I run <a href="https://boxu.dev" target="_blank">BOXU</a> and build random tools when something annoys me enough. This was one of those times.</p>
                 
                 <p>The code is open source on <a href="https://github.com/blazfxx" target="_blank">GitHub</a> if you want to poke around or suggest improvements. Or just use it and never think about it again — that's cool too.</p>
                 
