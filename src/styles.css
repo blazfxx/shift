@@ -549,6 +549,47 @@ body {
   animation: slideUp 0.3s ease forwards;
 }
 
+.footer {
+  text-align: center;
+  padding: 2rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: 3rem;
+}
+
+.footer-text {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.social-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.social-link {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-speed) ease;
+}
+
+.social-link:hover {
+  opacity: 0.7;
+}
+
+.social-link svg {
+  width: 18px;
+  height: 18px;
+}
+
 @media (max-width: 640px) {
   .navbar {
     padding: 0.875rem 1rem;

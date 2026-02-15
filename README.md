@@ -1,9 +1,14 @@
 # Shift - Free Format Converter
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 [![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-orange.svg)](https://pages.cloudflare.com/)
 [![FFmpeg.wasm](https://img.shields.io/badge/FFmpeg-wasm-green.svg)](https://github.com/ffmpegwasm/ffmpeg.wasm)
 [![Privacy First](https://img.shields.io/badge/Privacy-First-blue.svg)](#security-features)
+
+[![Website](https://img.shields.io/badge/Website-boxu.dev-blue.svg)](https://boxu.dev)
+[![X/Twitter](https://img.shields.io/badge/X-@boxudev-black.svg)](https://x.com/boxudev)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg)](https://discord.gg/cmPGdhXYxp)
+[![GitHub](https://img.shields.io/badge/GitHub-blazfxx-181717.svg)](https://github.com/blazfxx)
 
 A fast, privacy-focused file converter that runs entirely in your browser. No uploads, no servers, no tracking.
 
@@ -244,31 +249,16 @@ Contributions are welcome! Please follow these steps:
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0) - see the [LICENSE](LICENSE) file for details.
 
-```
-MIT License
+This license allows sharing and adapting the work, requires attribution, and **prohibits commercial use**.
 
-Copyright (c) 2024 Shift
+## Connect
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+- **Website**: [boxu.dev](https://boxu.dev)
+- **X/Twitter**: [@boxudev](https://x.com/boxudev)
+- **Discord**: [Join our server](https://discord.gg/cmPGdhXYxp)
+- **GitHub**: [blazfxx](https://github.com/blazfxx)
 
 ## Acknowledgments
 
