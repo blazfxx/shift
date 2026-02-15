@@ -24,12 +24,12 @@ export async function onRequest(context) {
     const csp = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net",
-      "worker-src 'self' blob:",
-      "child-src 'self' blob:",
+      "worker-src 'self' blob: https://unpkg.com",
+      "child-src 'self' blob: https://unpkg.com",
       "connect-src 'self' https://unpkg.com https://cdn.jsdelivr.net blob: data:",
       "font-src 'self' https://fonts.gstatic.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: blob:",
+      "img-src 'self' data: blob: https:",
       "media-src 'self' blob:",
       "object-src 'none'"
     ].join('; ');
