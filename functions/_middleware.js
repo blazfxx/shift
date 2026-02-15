@@ -21,20 +21,8 @@ export async function onRequest(context) {
     newResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     newResponse.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
 
-    const csp = [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net",
-      "worker-src 'self' blob: https://unpkg.com",
-      "child-src 'self' blob: https://unpkg.com",
-      "connect-src 'self' https://unpkg.com https://cdn.jsdelivr.net blob: data:",
-      "font-src 'self' https://fonts.gstatic.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: blob: https:",
-      "media-src 'self' blob:",
-      "object-src 'none'"
-    ].join('; ');
-
-    newResponse.headers.set('Content-Security-Policy', csp);
+    // CSP disabled for self-hosted FFmpeg - all resources are local
+    // newResponse.headers.set('Content-Security-Policy', csp);
 
     const permissionsPolicy = [
       'accelerometer=()',
