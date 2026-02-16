@@ -1,6 +1,3 @@
-import { FFmpeg } from "./ffmpeg/ffmpeg.js";
-import { fetchFile } from "./ffmpeg/ffmpeg-util.js";
-
 const MAX_FILES = 10;
 
 const SUPPORTED_FORMATS = {
@@ -65,6 +62,7 @@ const state = {
   ffmpeg: null,
   ffmpegReady: false,
   ffmpegLoadingPromise: null,
+  fetchFile: null,
   converting: false,
   conversionProgress: {
     currentIndex: 0,
@@ -373,17 +371,7 @@ async function ensureFFmpeg() {
   }
 
   if (!state.ffmpegLoadingPromise) {
-    state.ffmpeg = new FFmpeg();
-    state.ffmpeg.on("progress", ({ progress }) => {
-      state.conversionProgress.currentProgress = progress;
-      updateProgress();
-    });
-
-    state.ffmpegLoadingPromise = state.ffmpeg.load({
-      coreURL: "./ffmpeg/ffmpeg-core.js",
-      wasmURL: "./ffmpeg/ffmpeg-core.wasm",
-      workerURL: "./ffmpeg/814.ffmpeg.js"
-    });
+    state.ffmpegLoadingPromise = loadFFmpegRuntime();
   }
 
   try {
@@ -395,11 +383,44 @@ async function ensureFFmpeg() {
   }
 }
 
+async function loadFFmpegRuntime() {
+  let FFmpeg;
+  let fetchFileFn;
+
+  try {
+    const [ffmpegModule, utilModule] = await Promise.all([
+      import("./ffmpeg/ffmpeg.js"),
+      import("./ffmpeg/ffmpeg-util.js")
+    ]);
+    FFmpeg = ffmpegModule.FFmpeg;
+    fetchFileFn = utilModule.fetchFile;
+  } catch {
+    throw new Error("FFmpeg runtime files are missing in src/ffmpeg. Upload works, but conversion needs those files restored.");
+  }
+
+  if (typeof FFmpeg !== "function" || typeof fetchFileFn !== "function") {
+    throw new Error("FFmpeg runtime loaded with invalid exports.");
+  }
+
+  state.fetchFile = fetchFileFn;
+  state.ffmpeg = new FFmpeg();
+  state.ffmpeg.on("progress", ({ progress }) => {
+    state.conversionProgress.currentProgress = progress;
+    updateProgress();
+  });
+
+  await state.ffmpeg.load({
+    coreURL: "./ffmpeg/ffmpeg-core.js",
+    wasmURL: "./ffmpeg/ffmpeg-core.wasm",
+    workerURL: "./ffmpeg/814.ffmpeg.js"
+  });
+}
+
 async function convertSingleFile(fileItem) {
   const inputName = `input-${fileItem.id}.${fileItem.ext}`;
   const outputName = `${stripExtension(fileItem.name)}.${fileItem.targetFormat}`;
 
-  await state.ffmpeg.writeFile(inputName, await fetchFile(fileItem.file));
+  await state.ffmpeg.writeFile(inputName, await state.fetchFile(fileItem.file));
   await state.ffmpeg.exec(["-i", inputName, outputName]);
   const outputData = await state.ffmpeg.readFile(outputName);
 
