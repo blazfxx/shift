@@ -1,785 +1,525 @@
-const { FFmpeg } = FFmpegWASM;
-const { fetchFile, toBlobURL } = FFmpegUtil;
-
-const FILE_FORMATS = {
-  image: {
-    extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'ico', 'svg', 'tiff', 'tif'],
-    outputs: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'ico']
-  },
-  video: {
-    extensions: ['mp4', 'webm', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'm4v', '3gp'],
-    outputs: ['mp4', 'webm', 'avi', 'mov', 'mkv']
-  },
-  audio: {
-    extensions: ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus'],
-    outputs: ['mp3', 'wav', 'ogg', 'flac', 'aac']
-  },
-  document: {
-    extensions: ['pdf', 'doc', 'docx', 'txt', 'rtf'],
-    outputs: []
-  }
-};
+import { FFmpeg } from "./ffmpeg/ffmpeg.js";
+import { fetchFile } from "./ffmpeg/ffmpeg-util.js";
 
 const MAX_FILES = 10;
 
-class FileConverter {
-  constructor() {
-    this.ffmpeg = null;
-    this.isLoaded = false;
-    this.files = [];
-    this.convertedFiles = [];
-    this.isConverting = false;
-    this.filePreviews = new Map(); // Store preview URLs
-    
-    this.init();
+const SUPPORTED_FORMATS = {
+  image: ["png", "jpg", "jpeg", "webp", "gif", "bmp", "ico", "svg", "tiff"],
+  video: ["mp4", "webm", "avi", "mov", "mkv", "wmv", "flv", "m4v", "3gp"],
+  audio: ["mp3", "wav", "ogg", "flac", "aac", "m4a", "wma", "opus"]
+};
+
+const MIME_BY_EXT = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  bmp: "image/bmp",
+  ico: "image/x-icon",
+  svg: "image/svg+xml",
+  tiff: "image/tiff",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  avi: "video/x-msvideo",
+  mov: "video/quicktime",
+  mkv: "video/x-matroska",
+  wmv: "video/x-ms-wmv",
+  flv: "video/x-flv",
+  m4v: "video/mp4",
+  "3gp": "video/3gpp",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  flac: "audio/flac",
+  aac: "audio/aac",
+  m4a: "audio/mp4",
+  wma: "audio/x-ms-wma",
+  opus: "audio/ogg"
+};
+
+const dom = {
+  appShell: document.getElementById("appShell"),
+  logoButton: document.getElementById("logoButton"),
+  uploadView: document.getElementById("uploadView"),
+  fileView: document.getElementById("fileView"),
+  dropzone: document.getElementById("dropzone"),
+  fileInput: document.getElementById("fileInput"),
+  addFilesButton: document.getElementById("addFilesButton"),
+  clearAllButton: document.getElementById("clearAllButton"),
+  convertButton: document.getElementById("convertButton"),
+  fileList: document.getElementById("fileList"),
+  fileCount: document.getElementById("fileCount"),
+  progressSection: document.getElementById("progressSection"),
+  progressPercent: document.getElementById("progressPercent"),
+  progressFiles: document.getElementById("progressFiles"),
+  progressFill: document.getElementById("progressFill"),
+  progressBarWrap: document.getElementById("progressBarWrap"),
+  downloadSection: document.getElementById("downloadSection"),
+  downloadList: document.getElementById("downloadList"),
+  statusMessage: document.getElementById("statusMessage")
+};
+
+const state = {
+  files: [],
+  ffmpeg: null,
+  ffmpegReady: false,
+  ffmpegLoadingPromise: null,
+  converting: false,
+  conversionProgress: {
+    currentIndex: 0,
+    currentProgress: 0,
+    total: 0
   }
+};
 
-  init() {
-    this.cacheElements();
-    this.bindEvents();
-    this.checkSharedArrayBuffer();
-    this.loadFFmpeg();
-  }
+bindEvents();
+render();
 
-  cacheElements() {
-    // Views
-    this.uploadView = document.getElementById('uploadView');
-    this.fileView = document.getElementById('fileView');
-    this.hero = document.querySelector('.hero');
-    
-    // Upload elements
-    this.dropZone = document.getElementById('dropZone');
-    this.fileInput = document.getElementById('fileInput');
-    this.addFilesInput = document.getElementById('addFilesInput');
-    
-    // File list elements
-    this.fileItems = document.getElementById('fileItems');
-    this.fileCount = document.getElementById('fileCount');
-    this.convertBtn = document.getElementById('convertBtn');
-    this.clearBtn = document.getElementById('clearBtn');
-    this.addFilesBtn = document.getElementById('addFilesBtn');
-    
-    // Progress elements
-    this.progressContainer = document.getElementById('progressContainer');
-    this.progressBar = document.getElementById('progressBar');
-    this.progressPercent = document.getElementById('progressPercent');
-    this.progressText = document.getElementById('progressText');
-    
-    // Status and download
-    this.statusMessage = document.getElementById('statusMessage');
-    this.downloadSection = document.getElementById('downloadSection');
-    this.downloadItems = document.getElementById('downloadItems');
-    
-    // Navbar
-    this.navbarBrand = document.querySelector('.navbar-brand');
-  }
+function bindEvents() {
+  dom.dropzone.addEventListener("click", () => dom.fileInput.click());
+  dom.fileInput.addEventListener("change", (event) => {
+    handleIncomingFiles(event.target.files);
+    dom.fileInput.value = "";
+  });
+  dom.addFilesButton.addEventListener("click", () => dom.fileInput.click());
+  dom.clearAllButton.addEventListener("click", resetSession);
+  dom.convertButton.addEventListener("click", convertFiles);
+  dom.logoButton.addEventListener("click", resetSession);
 
-  checkSharedArrayBuffer() {
-    if (typeof SharedArrayBuffer === 'undefined') {
-      console.warn('SharedArrayBuffer is not available. FFmpeg may not work properly.');
-      return false;
-    }
-    return true;
-  }
+  dom.dropzone.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    dom.appShell.classList.add("drag-active");
+  });
 
-  async loadFFmpeg() {
-    try {
-      this.updateStatus('Loading converter...');
-      this.ffmpeg = new FFmpeg();
-      
-      this.ffmpeg.on('progress', ({ progress, time }) => {
-        if (this.currentFileIndex !== undefined) {
-          const percent = Math.round(progress * 100);
-          this.updateFileProgress(this.currentFileIndex, percent);
-        }
-      });
+  dom.dropzone.addEventListener("dragleave", () => {
+    dom.appShell.classList.remove("drag-active");
+  });
 
-      this.ffmpeg.on('log', ({ message }) => {
-        console.log('FFmpeg:', message);
-      });
+  dom.dropzone.addEventListener("drop", (event) => {
+    event.preventDefault();
+    dom.appShell.classList.remove("drag-active");
+    handleIncomingFiles(event.dataTransfer?.files);
+  });
 
-      // Try to load FFmpeg with a timeout - now fully self-hosted on Vercel
-      const loadPromise = (async () => {
-        // Use blob URLs to avoid path resolution issues
-        const coreURL = await toBlobURL('/ffmpeg/ffmpeg-core.js', 'text/javascript');
-        const wasmURL = await toBlobURL('/ffmpeg/ffmpeg-core.wasm', 'application/wasm');
-
-        await this.ffmpeg.load({
-          coreURL,
-          wasmURL
-        });
-      })();
-
-      // Timeout after 30 seconds
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('FFmpeg loading timeout')), 30000);
-      });
-
-      await Promise.race([loadPromise, timeoutPromise]);
-
-      this.isLoaded = true;
-      this.hideError();
-      this.updateConvertButton();
-      console.log('FFmpeg loaded successfully');
-      
-    } catch (error) {
-      console.error('Failed to load FFmpeg:', error);
-      this.isLoaded = true; // Still allow users to try converting
-      this.updateConvertButton();
-      this.showError('Converter loaded with limited functionality. Some features may not work.');
-    }
-  }
-
-  bindEvents() {
-    // Drop zone events - only trigger file input on click, not the other way around
-    this.dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.dropZone.classList.add('drag-active');
-    });
-    
-    this.dropZone.addEventListener('dragleave', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.dropZone.classList.remove('drag-active');
-    });
-    
-    this.dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.dropZone.classList.remove('drag-active');
-      const droppedFiles = Array.from(e.dataTransfer.files);
-      this.processFiles(droppedFiles);
-    });
-    
-    // Click on drop zone only triggers file input - NOT double triggering
-    this.dropZone.addEventListener('click', (e) => {
-      // Only trigger if we didn't click on a child element that's the file input
-      if (e.target !== this.fileInput) {
-        this.fileInput.click();
-      }
-    });
-    
-    this.fileInput.addEventListener('change', (e) => {
-      const selectedFiles = Array.from(e.target.files);
-      if (selectedFiles.length > 0) {
-        this.processFiles(selectedFiles);
-      }
-      e.target.value = ''; // Reset so same file can be selected again
-    });
-
-    // Add more files
-    if (this.addFilesBtn) {
-      this.addFilesBtn.addEventListener('click', () => {
-        if (this.addFilesInput) {
-          this.addFilesInput.click();
-        }
-      });
-    }
-
-    if (this.addFilesInput) {
-      this.addFilesInput.addEventListener('change', (e) => {
-        const selectedFiles = Array.from(e.target.files);
-        if (selectedFiles.length > 0) {
-          this.processFiles(selectedFiles);
-        }
-        e.target.value = '';
-      });
-    }
-
-    // Action buttons
-    this.convertBtn.addEventListener('click', () => this.handleConvert());
-    this.clearBtn.addEventListener('click', () => this.clearAll());
-    
-    // Navbar brand click to go home
-    if (this.navbarBrand) {
-      this.navbarBrand.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.clearAll();
-      });
-    }
-
-    // Paste support
-    document.addEventListener('paste', (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
-      const pastedFiles = [];
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.kind === 'file') {
-          const file = item.getAsFile();
-          if (file) {
-            pastedFiles.push(file);
-          }
-        }
-      }
-
-      if (pastedFiles.length > 0) {
-        e.preventDefault();
-        this.processFiles(pastedFiles);
-      }
-    });
-
-    // Drag and drop on entire page when in file view
-    document.addEventListener('dragover', (e) => {
-      if (!this.fileView.classList.contains('hidden')) {
-        e.preventDefault();
-      }
-    });
-
-    document.addEventListener('drop', (e) => {
-      if (!this.fileView.classList.contains('hidden')) {
-        // Only process if not dropping on the file list itself
-        if (!e.target.closest('.file-list')) {
-          e.preventDefault();
-          const droppedFiles = Array.from(e.dataTransfer.files);
-          if (droppedFiles.length > 0) {
-            this.processFiles(droppedFiles);
-          }
-        }
-      }
-    });
-  }
-
-  processFiles(newFiles) {
-    const totalFiles = this.files.length + newFiles.length;
-    
-    if (totalFiles > MAX_FILES) {
-      this.showError(`Maximum ${MAX_FILES} files allowed. You currently have ${this.files.length}.`);
+  window.addEventListener("dragover", (event) => {
+    if (!state.files.length) {
       return;
     }
 
-    newFiles.forEach(file => {
-      const fileInfo = this.createFileInfo(file);
-      if (fileInfo) {
-        this.files.push(fileInfo);
-        // Generate preview for images
-        if (fileInfo.fileType === 'image') {
-          this.generatePreview(fileInfo);
-        }
-      }
-    });
+    event.preventDefault();
+    dom.appShell.classList.add("drag-active");
+  });
 
-    if (this.files.length > 0) {
-      this.switchToFileView();
+  window.addEventListener("dragleave", (event) => {
+    if (event.clientX === 0 && event.clientY === 0) {
+      dom.appShell.classList.remove("drag-active");
     }
+  });
 
-    this.renderFileList();
-    this.updateConvertButton();
-    this.hideError();
-  }
-
-  createFileInfo(file) {
-    const extension = this.getFileExtension(file.name);
-    const fileType = this.detectFileType(extension);
-    
-    return {
-      id: Date.now() + Math.random(),
-      file,
-      name: file.name,
-      extension,
-      fileType,
-      targetFormat: this.getDefaultOutputFormat(fileType, extension),
-      progress: 0,
-      status: 'pending',
-      convertedBlob: null
-    };
-  }
-
-  generatePreview(fileInfo) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      this.filePreviews.set(fileInfo.id, e.target.result);
-      this.renderFileList();
-    };
-    reader.readAsDataURL(fileInfo.file);
-  }
-
-  getFileExtension(filename) {
-    return filename.split('.').pop().toLowerCase();
-  }
-
-  detectFileType(extension) {
-    for (const [type, config] of Object.entries(FILE_FORMATS)) {
-      if (config.extensions.includes(extension)) {
-        return type;
-      }
-    }
-    return 'unknown';
-  }
-
-  getDefaultOutputFormat(fileType, currentExtension) {
-    const config = FILE_FORMATS[fileType];
-    if (!config || config.outputs.length === 0) return null;
-    
-    if (config.outputs.includes(currentExtension)) {
-      const otherFormats = config.outputs.filter(f => f !== currentExtension);
-      return otherFormats[0] || config.outputs[0];
-    }
-    return config.outputs[0];
-  }
-
-  getOutputFormats(fileType, currentExtension) {
-    const config = FILE_FORMATS[fileType];
-    if (!config) return [];
-    return config.outputs.filter(f => f !== currentExtension);
-  }
-
-  switchToFileView() {
-    this.uploadView.classList.add('hidden');
-    this.fileView.classList.remove('hidden');
-    this.hero.classList.add('hidden');
-  }
-
-  switchToUploadView() {
-    this.uploadView.classList.remove('hidden');
-    this.fileView.classList.add('hidden');
-    this.hero.classList.remove('hidden');
-    this.downloadSection.classList.add('hidden');
-    this.progressContainer.classList.add('hidden');
-  }
-
-  renderFileList() {
-    this.fileCount.textContent = `${this.files.length} file${this.files.length !== 1 ? 's' : ''}`;
-    
-    if (this.files.length === 0) {
-      this.fileItems.innerHTML = `
-        <div class="empty-state">
-          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-            <polyline points="13 2 13 9 20 9"/>
-          </svg>
-          <p>No files selected</p>
-        </div>
-      `;
+  window.addEventListener("drop", (event) => {
+    if (!state.files.length) {
       return;
     }
 
-    this.fileItems.innerHTML = this.files.map((fileInfo, index) => this.createFileListItem(fileInfo, index)).join('');
-    
-    // Bind format select events
-    this.fileItems.querySelectorAll('.format-select').forEach(select => {
-      select.addEventListener('change', (e) => {
-        const index = parseInt(e.target.dataset.index);
-        this.files[index].targetFormat = e.target.value;
-      });
-    });
+    event.preventDefault();
+    dom.appShell.classList.remove("drag-active");
+    handleIncomingFiles(event.dataTransfer?.files);
+  });
 
-    // Bind remove button events
-    this.fileItems.querySelectorAll('.remove-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const index = parseInt(e.currentTarget.dataset.index);
-        this.removeFile(index);
-      });
-    });
-  }
+  window.addEventListener("paste", (event) => {
+    const clipboardItems = event.clipboardData?.items;
 
-  createFileListItem(fileInfo, index) {
-    const outputFormats = this.getOutputFormats(fileInfo.fileType, fileInfo.extension);
-    const isUnsupported = fileInfo.fileType === 'unknown' || outputFormats.length === 0;
-    
-    const statusIcon = fileInfo.status === 'completed' ? '✓' : 
-                       fileInfo.status === 'error' ? '✕' : 
-                       fileInfo.status === 'converting' ? '⟳' : '';
-
-    const progressHTML = fileInfo.status === 'converting' 
-      ? `<div class="file-progress"><div class="file-progress-bar" style="width: ${fileInfo.progress}%"></div></div>`
-      : '';
-
-    // Get icon/preview
-    let iconHTML;
-    if (fileInfo.fileType === 'image' && this.filePreviews.has(fileInfo.id)) {
-      iconHTML = `<img src="${this.filePreviews.get(fileInfo.id)}" alt="" class="file-preview-img">`;
-    } else {
-      iconHTML = this.getFileIcon(fileInfo.fileType);
+    if (!clipboardItems || !clipboardItems.length) {
+      return;
     }
 
-    return `
-      <div class="file-item ${fileInfo.status}" data-id="${fileInfo.id}">
-        <div class="file-item-icon">${iconHTML}</div>
-        <div class="file-item-info">
-          <div class="file-item-name" title="${fileInfo.name}">${this.truncateFileName(fileInfo.name)}</div>
-          <div class="file-item-meta">${this.formatFileSize(fileInfo.file.size)}</div>
-        </div>
-        ${progressHTML}
-        <div class="file-item-actions">
-          ${!isUnsupported ? `
-            <span class="convert-label">Convert to:</span>
-            <div class="select-wrapper">
-              <select class="format-select" data-index="${index}" ${fileInfo.status === 'converting' ? 'disabled' : ''}>
-                ${outputFormats.map(format => `
-                  <option value="${format}" ${format === fileInfo.targetFormat ? 'selected' : ''}>
-                    ${format.toUpperCase()}
-                  </option>
-                `).join('')}
-              </select>
-              <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </div>
-          ` : `<span class="unsupported-badge">Unsupported</span>`}
-          <button class="remove-btn" data-index="${index}" ${fileInfo.status === 'converting' ? 'disabled' : ''} title="Remove file">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-          ${statusIcon ? `<span class="status-icon" style="color: ${fileInfo.status === 'completed' ? 'var(--success)' : fileInfo.status === 'error' ? 'var(--error)' : 'var(--accent)'};">${statusIcon}</span>` : ''}
-        </div>
+    const pastedFiles = [];
+    for (const item of clipboardItems) {
+      const file = item.getAsFile();
+      if (file) {
+        pastedFiles.push(file);
+      }
+    }
+
+    if (pastedFiles.length) {
+      handleIncomingFiles(pastedFiles);
+    }
+  });
+}
+
+function handleIncomingFiles(inputFiles) {
+  if (!inputFiles || !inputFiles.length) {
+    return;
+  }
+
+  const incoming = Array.from(inputFiles);
+  const availableSlots = MAX_FILES - state.files.length;
+
+  if (availableSlots <= 0) {
+    setStatus(`Max ${MAX_FILES} files per session.`, "error");
+    return;
+  }
+
+  const accepted = [];
+  const unsupportedNames = [];
+
+  for (const file of incoming) {
+    const ext = getExtension(file.name);
+    const kind = getKindForExtension(ext);
+    if (!kind) {
+      unsupportedNames.push(file.name);
+      continue;
+    }
+
+    accepted.push(createFileRecord(file, ext, kind));
+  }
+
+  if (!accepted.length) {
+    if (unsupportedNames.length) {
+      setStatus(`Unsupported file type: ${unsupportedNames[0]}`, "error");
+    }
+    return;
+  }
+
+  const added = accepted.slice(0, availableSlots);
+  const droppedCount = accepted.length - added.length;
+
+  state.files.push(...added);
+
+  if (unsupportedNames.length && droppedCount > 0) {
+    setStatus("Some files were skipped due to format limits and file count.", "error");
+  } else if (unsupportedNames.length) {
+    setStatus("Some files were skipped because the format is not supported.", "error");
+  } else if (droppedCount > 0) {
+    setStatus(`Only the first ${availableSlots} files were added (max ${MAX_FILES}).`, "error");
+  } else {
+    setStatus(`${added.length} file${added.length > 1 ? "s" : ""} added.`, "success");
+  }
+
+  render();
+}
+
+function createFileRecord(file, ext, kind) {
+  const outputs = SUPPORTED_FORMATS[kind].filter((candidate) => candidate !== ext);
+  const targetFormat = outputs[0] || SUPPORTED_FORMATS[kind][0];
+
+  return {
+    id: crypto.randomUUID(),
+    file,
+    name: file.name,
+    ext,
+    kind,
+    size: file.size,
+    outputs,
+    targetFormat,
+    status: "ready",
+    output: null,
+    previewURL: kind === "image" ? URL.createObjectURL(file) : null
+  };
+}
+
+function render() {
+  const hasFiles = state.files.length > 0;
+  dom.uploadView.classList.toggle("hidden", hasFiles);
+  dom.fileView.classList.toggle("hidden", !hasFiles);
+  dom.fileCount.textContent = `${state.files.length} file${state.files.length === 1 ? "" : "s"}`;
+  dom.convertButton.disabled = !hasFiles || state.converting;
+  dom.convertButton.textContent = state.converting ? "Converting..." : "Convert Files";
+
+  renderFileList();
+  renderDownloads();
+}
+
+function renderFileList() {
+  dom.fileList.innerHTML = "";
+
+  for (const item of state.files) {
+    const li = document.createElement("li");
+    li.className = "file-item";
+
+    const thumb = item.kind === "image"
+      ? `<img class="file-thumb" src="${item.previewURL}" alt="${escapeHtml(item.name)} preview">`
+      : `<div class="file-thumb">${item.kind.toUpperCase()}</div>`;
+
+    li.innerHTML = `
+      ${thumb}
+      <div class="file-meta">
+        <span class="file-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+        <span class="file-size">${formatFileSize(item.size)}</span>
+      </div>
+      <label class="format-wrap">
+        Convert to:
+        <select data-action="format" data-id="${item.id}">
+          ${item.outputs.map((output) => `<option value="${output}" ${item.targetFormat === output ? "selected" : ""}>${output.toUpperCase()}</option>`).join("")}
+        </select>
+      </label>
+      <div class="file-controls">
+        <button class="remove-button" data-action="remove" data-id="${item.id}" type="button" aria-label="Remove file">x</button>
+        <span class="status-pill ${item.status === "done" ? "done" : ""}">${item.status === "done" ? "OK" : ".."}</span>
       </div>
     `;
+
+    dom.fileList.appendChild(li);
   }
 
-  getFileIcon(fileType) {
-    const icons = {
-      image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
-      video: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`,
-      audio: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`,
-      document: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`,
-      unknown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>`
-    };
-    return icons[fileType] || icons.unknown;
-  }
-
-  truncateFileName(name, maxLength = 35) {
-    if (name.length <= maxLength) return name;
-    const ext = this.getFileExtension(name);
-    const baseName = name.slice(0, name.lastIndexOf('.'));
-    const truncated = baseName.slice(0, maxLength - ext.length - 4) + '...';
-    return `${truncated}.${ext}`;
-  }
-
-  formatFileSize(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  }
-
-  removeFile(index) {
-    const fileInfo = this.files[index];
-    // Clean up preview URL
-    if (this.filePreviews.has(fileInfo.id)) {
-      this.filePreviews.delete(fileInfo.id);
-    }
-    
-    this.files.splice(index, 1);
-    this.renderFileList();
-    this.updateConvertButton();
-    
-    if (this.files.length === 0) {
-      this.switchToUploadView();
-    }
-  }
-
-  clearAll() {
-    // Clean up all preview URLs
-    this.filePreviews.clear();
-    this.files = [];
-    this.convertedFiles = [];
-    this.switchToUploadView();
-    this.renderFileList();
-    this.updateConvertButton();
-    this.hideError();
-  }
-
-  updateConvertButton() {
-    const hasValidFiles = this.files.some(f => 
-      f.fileType !== 'unknown' && 
-      FILE_FORMATS[f.fileType]?.outputs.length > 0
-    );
-    
-    // Enable button if we have valid files, even if FFmpeg isn't fully loaded yet
-    // This allows users to see what the issue is
-    this.convertBtn.disabled = !hasValidFiles || this.isConverting;
-    this.convertBtn.textContent = this.isConverting ? 'Converting...' : 'Convert Files';
-  }
-
-  async handleConvert() {
-    // Check if FFmpeg is ready, if not try to reload
-    if (!this.isLoaded) {
-      this.showError('Converter is still loading. Please wait...');
-      return;
-    }
-
-    if (this.isConverting) return;
-
-    const validFiles = this.files.filter(f => 
-      f.fileType !== 'unknown' && 
-      FILE_FORMATS[f.fileType]?.outputs.length > 0 &&
-      f.targetFormat
-    );
-
-    if (validFiles.length === 0) {
-      this.showError('No valid files to convert');
-      return;
-    }
-
-    this.isConverting = true;
-    this.convertedFiles = [];
-    this.updateConvertButton();
-    this.progressContainer.classList.remove('hidden');
-    this.downloadSection.classList.add('hidden');
-
-    try {
-      for (let i = 0; i < validFiles.length; i++) {
-        this.currentFileIndex = i;
-        const fileInfo = validFiles[i];
-        
-        fileInfo.status = 'converting';
-        fileInfo.progress = 0;
-        this.renderFileList();
-        this.updateOverallProgress(i, validFiles.length);
-
-        try {
-          const convertedBlob = await this.convertFile(fileInfo);
-          fileInfo.convertedBlob = convertedBlob;
-          fileInfo.status = 'completed';
-          this.convertedFiles.push(fileInfo);
-        } catch (error) {
-          console.error(`Failed to convert ${fileInfo.name}:`, error);
-          fileInfo.status = 'error';
-          fileInfo.error = error.message;
-          this.showError(`Failed to convert ${fileInfo.name}: ${error.message}`);
-        }
-
-        this.renderFileList();
-      }
-
-      this.updateOverallProgress(validFiles.length, validFiles.length);
-      
-      // Small delay to ensure UI updates before showing download section
-      setTimeout(() => {
-        if (this.convertedFiles.length > 0) {
-          this.renderDownloadSection();
-        } else {
-          this.showError('No files were converted successfully. Check console for details.');
-        }
-      }, 100);
-
-    } catch (error) {
-      console.error('Conversion error:', error);
-      this.showError(`Conversion failed: ${error.message}`);
-    } finally {
-      this.isConverting = false;
-      this.currentFileIndex = undefined;
-      this.updateConvertButton();
-    }
-  }
-
-  async convertFile(fileInfo) {
-    const { file, extension, targetFormat, fileType } = fileInfo;
-    
-    const inputName = `input.${extension}`;
-    const outputName = `output.${targetFormat}`;
-    
-    await this.ffmpeg.writeFile(inputName, await fetchFile(file));
-
-    const args = this.buildFFmpegArgs(fileType, inputName, outputName, extension, targetFormat);
-    
-    await this.ffmpeg.exec(args);
-
-    const data = await this.ffmpeg.readFile(outputName);
-    
-    await this.ffmpeg.deleteFile(inputName);
-    await this.ffmpeg.deleteFile(outputName);
-
-    return new Blob([data.buffer], { type: this.getMimeType(targetFormat) });
-  }
-
-  buildFFmpegArgs(fileType, inputName, outputName, inputFormat, outputFormat) {
-    const baseArgs = ['-i', inputName];
-    
-    switch (fileType) {
-      case 'image':
-        return this.buildImageArgs(baseArgs, inputFormat, outputFormat, outputName);
-      case 'video':
-        return this.buildVideoArgs(baseArgs, inputFormat, outputFormat, outputName);
-      case 'audio':
-        return this.buildAudioArgs(baseArgs, inputFormat, outputFormat, outputName);
-      default:
-        return [...baseArgs, outputName];
-    }
-  }
-
-  buildImageArgs(baseArgs, inputFormat, outputFormat, outputName) {
-    const args = [...baseArgs];
-    
-    if (outputFormat === 'jpg' || outputFormat === 'jpeg') {
-      args.push('-q:v', '2');
-    } else if (outputFormat === 'webp') {
-      args.push('-q:v', '75');
-    } else if (outputFormat === 'png') {
-      args.push('-compression_level', '6');
-    }
-
-    if (inputFormat === 'svg') {
-      args.push('-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease');
-    }
-
-    args.push(outputName);
-    return args;
-  }
-
-  buildVideoArgs(baseArgs, inputFormat, outputFormat, outputName) {
-    const args = [...baseArgs];
-    
-    if (outputFormat === 'mp4') {
-      args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', '23');
-      args.push('-c:a', 'aac', '-b:a', '128k');
-      args.push('-movflags', '+faststart');
-    } else if (outputFormat === 'webm') {
-      args.push('-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0');
-      args.push('-c:a', 'libopus', '-b:a', '128k');
-    } else if (outputFormat === 'avi') {
-      args.push('-c:v', 'mpeg4', '-q:v', '5');
-      args.push('-c:a', 'mp3', '-b:a', '192k');
-    } else if (outputFormat === 'mov') {
-      args.push('-c:v', 'libx264', '-preset', 'medium');
-      args.push('-c:a', 'aac', '-b:a', '128k');
-    } else if (outputFormat === 'mkv') {
-      args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', '23');
-      args.push('-c:a', 'aac', '-b:a', '128k');
-    }
-
-    args.push(outputName);
-    return args;
-  }
-
-  buildAudioArgs(baseArgs, inputFormat, outputFormat, outputName) {
-    const args = [...baseArgs];
-    
-    if (outputFormat === 'mp3') {
-      args.push('-c:a', 'libmp3lame', '-b:a', '192k');
-    } else if (outputFormat === 'wav') {
-      args.push('-c:a', 'pcm_s16le');
-    } else if (outputFormat === 'ogg') {
-      args.push('-c:a', 'libvorbis', '-q:a', '5');
-    } else if (outputFormat === 'flac') {
-      args.push('-c:a', 'flac', '-compression_level', '5');
-    } else if (outputFormat === 'aac') {
-      args.push('-c:a', 'aac', '-b:a', '192k');
-    }
-
-    args.push(outputName);
-    return args;
-  }
-
-  getMimeType(format) {
-    const mimeTypes = {
-      png: 'image/png',
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      webp: 'image/webp',
-      gif: 'image/gif',
-      bmp: 'image/bmp',
-      ico: 'image/x-icon',
-      mp4: 'video/mp4',
-      webm: 'video/webm',
-      avi: 'video/x-msvideo',
-      mov: 'video/quicktime',
-      mkv: 'video/x-matroska',
-      mp3: 'audio/mpeg',
-      wav: 'audio/wav',
-      ogg: 'audio/ogg',
-      flac: 'audio/flac',
-      aac: 'audio/aac'
-    };
-    return mimeTypes[format] || 'application/octet-stream';
-  }
-
-  updateFileProgress(index, progress) {
-    if (this.files[index]) {
-      this.files[index].progress = progress;
-      const progressBars = this.fileItems.querySelectorAll('.file-progress-bar');
-      if (progressBars[index]) {
-        progressBars[index].style.width = `${progress}%`;
-      }
-    }
-  }
-
-  updateOverallProgress(current, total) {
-    const percent = Math.round((current / total) * 100);
-    this.progressBar.style.width = `${percent}%`;
-    this.progressPercent.textContent = `${percent}%`;
-    this.progressText.textContent = `${current}/${total} files`;
-  }
-
-  renderDownloadSection() {
-    console.log('Rendering download section, converted files:', this.convertedFiles.length);
-    
-    if (this.convertedFiles.length === 0) {
-      console.warn('No converted files to display');
-      this.showError('Conversion completed but no files were successfully converted.');
-      return;
-    }
-    
-    this.downloadSection.classList.remove('hidden');
-    this.downloadItems.innerHTML = this.convertedFiles.map(fileInfo => {
-      const baseName = fileInfo.name.slice(0, fileInfo.name.lastIndexOf('.'));
-      return `
-        <div class="download-item">
-          <span class="download-item-name">${baseName}.${fileInfo.targetFormat}</span>
-          <button class="download-btn-small" data-id="${fileInfo.id}">Download</button>
-        </div>
-      `;
-    }).join('');
-
-    this.downloadItems.querySelectorAll('.download-btn-small').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = parseFloat(e.target.dataset.id);
-        const fileInfo = this.convertedFiles.find(f => f.id === id);
-        if (fileInfo) {
-          this.downloadFile(fileInfo);
-        }
-      });
+  dom.fileList.querySelectorAll("button[data-action='remove']").forEach((button) => {
+    button.addEventListener("click", () => {
+      removeFile(button.dataset.id);
     });
-    
-    // Scroll to download section
-    this.downloadSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+
+  dom.fileList.querySelectorAll("select[data-action='format']").forEach((select) => {
+    select.addEventListener("change", () => {
+      updateTargetFormat(select.dataset.id, select.value);
+    });
+  });
+}
+
+function renderDownloads() {
+  dom.downloadList.innerHTML = "";
+  const doneItems = state.files.filter((item) => item.output);
+  dom.downloadSection.classList.toggle("hidden", doneItems.length === 0);
+
+  for (const item of doneItems) {
+    const row = document.createElement("li");
+    row.className = "download-item";
+
+    const title = document.createElement("span");
+    title.textContent = item.output.name;
+
+    const button = document.createElement("a");
+    button.className = "button primary";
+    button.href = item.output.url;
+    button.download = item.output.name;
+    button.textContent = "Download";
+
+    row.append(title, button);
+    dom.downloadList.appendChild(row);
+  }
+}
+
+function removeFile(id) {
+  const index = state.files.findIndex((item) => item.id === id);
+  if (index < 0 || state.converting) {
+    return;
   }
 
-  downloadFile(fileInfo) {
-    if (!fileInfo.convertedBlob) return;
+  cleanupFileResources(state.files[index]);
+  state.files.splice(index, 1);
 
-    const url = URL.createObjectURL(fileInfo.convertedBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    
-    const baseName = fileInfo.name.slice(0, fileInfo.name.lastIndexOf('.'));
-    link.download = `${baseName}.${fileInfo.targetFormat}`;
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  if (!state.files.length) {
+    setStatus("Session cleared.", "success");
   }
 
-  updateStatus(message) {
-    if (this.statusMessage) {
-      this.statusMessage.textContent = message;
-      this.statusMessage.className = 'status-message info';
+  render();
+}
+
+function updateTargetFormat(id, format) {
+  const item = state.files.find((entry) => entry.id === id);
+  if (!item || state.converting) {
+    return;
+  }
+  item.targetFormat = format;
+}
+
+async function convertFiles() {
+  if (!state.files.length || state.converting) {
+    return;
+  }
+
+  state.converting = true;
+  resetProgress();
+  dom.progressSection.classList.remove("hidden");
+  dom.downloadSection.classList.add("hidden");
+  setStatus("Preparing FFmpeg engine...", "");
+  render();
+
+  try {
+    await ensureFFmpeg();
+    state.conversionProgress.total = state.files.length;
+
+    for (let index = 0; index < state.files.length; index += 1) {
+      const fileItem = state.files[index];
+      fileItem.status = "working";
+      state.conversionProgress.currentIndex = index;
+      state.conversionProgress.currentProgress = 0;
+      updateProgress();
+      renderFileList();
+
+      await convertSingleFile(fileItem);
+
+      fileItem.status = "done";
+      state.conversionProgress.currentProgress = 1;
+      updateProgress();
+      renderFileList();
+      dom.progressFiles.textContent = `${index + 1}/${state.files.length} files`;
     }
+
+    setStatus("Conversion complete. Download your files below.", "success");
+    renderDownloads();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setStatus(`Conversion failed: ${message}`, "error");
+  } finally {
+    state.converting = false;
+    render();
+  }
+}
+
+async function ensureFFmpeg() {
+  if (state.ffmpegReady) {
+    return;
   }
 
-  showError(message) {
-    if (this.statusMessage) {
-      this.statusMessage.textContent = message;
-      this.statusMessage.className = 'status-message error';
-    }
+  if (!state.ffmpegLoadingPromise) {
+    state.ffmpeg = new FFmpeg();
+    state.ffmpeg.on("progress", ({ progress }) => {
+      state.conversionProgress.currentProgress = progress;
+      updateProgress();
+    });
+
+    state.ffmpegLoadingPromise = state.ffmpeg.load({
+      coreURL: "./ffmpeg/ffmpeg-core.js",
+      wasmURL: "./ffmpeg/ffmpeg-core.wasm",
+      workerURL: "./ffmpeg/814.ffmpeg.js"
+    });
   }
 
-  hideError() {
-    if (this.statusMessage) {
-      this.statusMessage.textContent = '';
-      this.statusMessage.className = 'status-message';
+  try {
+    await state.ffmpegLoadingPromise;
+    state.ffmpegReady = true;
+  } catch (error) {
+    state.ffmpegLoadingPromise = null;
+    throw new Error("Unable to load FFmpeg assets from src/ffmpeg.");
+  }
+}
+
+async function convertSingleFile(fileItem) {
+  const inputName = `input-${fileItem.id}.${fileItem.ext}`;
+  const outputName = `${stripExtension(fileItem.name)}.${fileItem.targetFormat}`;
+
+  await state.ffmpeg.writeFile(inputName, await fetchFile(fileItem.file));
+  await state.ffmpeg.exec(["-i", inputName, outputName]);
+  const outputData = await state.ffmpeg.readFile(outputName);
+
+  const mime = MIME_BY_EXT[fileItem.targetFormat] || "application/octet-stream";
+  const blob = new Blob([outputData], { type: mime });
+  const url = URL.createObjectURL(blob);
+
+  if (fileItem.output?.url) {
+    URL.revokeObjectURL(fileItem.output.url);
+  }
+
+  fileItem.output = { name: outputName, url };
+
+  if (state.ffmpeg.deleteFile) {
+    try {
+      await state.ffmpeg.deleteFile(inputName);
+      await state.ffmpeg.deleteFile(outputName);
+    } catch {
+      // Ignore cleanup failures.
     }
   }
 }
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  new FileConverter();
-});
+function updateProgress() {
+  const { currentIndex, currentProgress, total } = state.conversionProgress;
+  if (!total) {
+    return;
+  }
+
+  const overall = Math.min(100, Math.round(((currentIndex + currentProgress) / total) * 100));
+  dom.progressPercent.textContent = `${overall}%`;
+  dom.progressFill.style.width = `${overall}%`;
+  dom.progressBarWrap.setAttribute("aria-valuenow", String(overall));
+  dom.progressFiles.textContent = `${Math.min(total, currentIndex + (currentProgress >= 1 ? 1 : 0))}/${total} files`;
+}
+
+function resetProgress() {
+  state.conversionProgress.currentIndex = 0;
+  state.conversionProgress.currentProgress = 0;
+  state.conversionProgress.total = 0;
+  dom.progressPercent.textContent = "0%";
+  dom.progressFill.style.width = "0%";
+  dom.progressFiles.textContent = "0/0 files";
+  dom.progressBarWrap.setAttribute("aria-valuenow", "0");
+}
+
+function resetSession() {
+  if (state.converting) {
+    return;
+  }
+
+  for (const item of state.files) {
+    cleanupFileResources(item);
+  }
+
+  state.files = [];
+  dom.progressSection.classList.add("hidden");
+  dom.downloadSection.classList.add("hidden");
+  setStatus("", "");
+  resetProgress();
+  render();
+}
+
+function cleanupFileResources(item) {
+  if (item.previewURL) {
+    URL.revokeObjectURL(item.previewURL);
+  }
+  if (item.output?.url) {
+    URL.revokeObjectURL(item.output.url);
+  }
+}
+
+function setStatus(message, type) {
+  dom.statusMessage.textContent = message;
+  dom.statusMessage.classList.remove("error", "success");
+  if (type) {
+    dom.statusMessage.classList.add(type);
+  }
+}
+
+function getExtension(filename) {
+  const pieces = filename.toLowerCase().split(".");
+  return pieces.length > 1 ? pieces.at(-1) : "";
+}
+
+function getKindForExtension(ext) {
+  if (SUPPORTED_FORMATS.image.includes(ext)) {
+    return "image";
+  }
+  if (SUPPORTED_FORMATS.video.includes(ext)) {
+    return "video";
+  }
+  if (SUPPORTED_FORMATS.audio.includes(ext)) {
+    return "audio";
+  }
+  return null;
+}
+
+function formatFileSize(size) {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  if (size < 1024 * 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function stripExtension(filename) {
+  return filename.replace(/\.[^/.]+$/, "");
+}
+
+function escapeHtml(value) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
