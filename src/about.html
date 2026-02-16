@@ -10,7 +10,18 @@
 <body class="about-page">
   <div class="app-shell about-shell">
     <header class="navbar">
-      <a class="logo-button" href="./index.html">Shift</a>
+      <a class="logo-button" href="./index.html">
+        <span class="logo-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M9 3H5a2 2 0 0 0-2 2v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M15 3h4a2 2 0 0 1 2 2v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M21 15v4a2 2 0 0 1-2 2h-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M3 15v4a2 2 0 0 0 2 2h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="2" fill="currentColor"/>
+          </svg>
+        </span>
+        <span>Shift</span>
+      </a>
       <nav class="nav-links" aria-label="Main">
         <a href="./index.html">Converter</a>
         <a href="./about.html" aria-current="page">About</a>
@@ -19,29 +30,47 @@
     </header>
 
     <main class="about-main">
+      <section class="about-hero">
+        <p class="about-eyebrow">About Shift</p>
+        <h1>Built because file converters got ridiculous.</h1>
+        <p>
+          I wanted a converter that feels honest: drop a file, choose a format, done.
+          No popups, no fake buttons, no weird bait-and-switch.
+        </p>
+      </section>
+
       <article class="about-card">
-        <h1>Why I built Shift</h1>
         <p>
-          Honestly? I got tired of shady file converter sites with ad walls, fake download buttons,
-          random limits, and weird account requirements for basic stuff.
+          Honestly? I got tired of shady converter websites with ad walls, fake downloads,
+          newsletter traps, and random limits for basic tasks.
         </p>
         <p>
-          I just wanted to convert files quickly and move on. So I built Shift to do exactly that:
-          free, local conversion with no signup and no watermark nonsense.
-        </p>
-        <p>
-          Everything runs in your browser with FFmpeg WebAssembly, which means your files stay on your
-          device. Nothing gets uploaded to my server.
+          So I built Shift to be simple and direct. Everything runs in your browser with FFmpeg WASM,
+          so your files stay on your device. Nothing is uploaded to my server.
         </p>
         <p>
           I run <a href="https://boxu.dev" target="_blank" rel="noreferrer noopener">BOXU</a>, and this is one
-          of those tools I wanted to exist in the world, so I shipped it.
-        </p>
-        <p>
-          If you want to check how it works, the code is public on
-          <a href="https://github.com/blazfxx" target="_blank" rel="noreferrer noopener">@blazfxx</a>.
+          of those tools I wanted to exist, so I shipped it.
         </p>
       </article>
+
+      <section class="about-grid" aria-label="Project principles">
+        <article class="about-pill-card">
+          <h2>Private by default</h2>
+          <p>All conversion happens locally in your browser. Your files do not leave your computer.</p>
+        </article>
+        <article class="about-pill-card">
+          <h2>Actually free</h2>
+          <p>No account required, no watermarks, no paywall for common formats.</p>
+        </article>
+        <article class="about-pill-card">
+          <h2>Open and inspectable</h2>
+          <p>
+            Source is public on
+            <a href="https://github.com/blazfxx" target="_blank" rel="noreferrer noopener">@blazfxx</a>.
+          </p>
+        </article>
+      </section>
     </main>
   </div>
 </body>
