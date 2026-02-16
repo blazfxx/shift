@@ -21,12 +21,12 @@ export async function onRequest(context) {
     newResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     newResponse.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
 
-    // CSP allowing unpkg.com for WASM and blob: for FFmpeg internals
+    // CSP for fully self-hosted setup on Vercel
     const csp = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
       "worker-src 'self' blob:",
-      "connect-src 'self' https://unpkg.com",
+      "connect-src 'self'",
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob:",
       "style-src 'self' 'unsafe-inline'"
