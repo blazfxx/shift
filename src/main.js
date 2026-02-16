@@ -387,6 +387,7 @@ async function ensureFFmpeg() {
 async function loadFFmpegRuntime() {
   let FFmpeg = null;
   let fetchFileFn = null;
+  let toBlobURLFn = null;
 
   try {
     const [ffmpegModule, utilModule] = await Promise.all([
@@ -395,6 +396,7 @@ async function loadFFmpegRuntime() {
     ]);
     FFmpeg = ffmpegModule?.FFmpeg || null;
     fetchFileFn = utilModule?.fetchFile || null;
+    toBlobURLFn = utilModule?.toBlobURL || null;
   } catch {
     // Fallback to UMD script loading below.
   }
@@ -407,6 +409,7 @@ async function loadFFmpegRuntime() {
 
     FFmpeg = globalThis.FFmpegWASM?.FFmpeg || globalThis.FFmpeg?.FFmpeg || null;
     fetchFileFn = globalThis.FFmpegUtil?.fetchFile || null;
+    toBlobURLFn = globalThis.FFmpegUtil?.toBlobURL || toBlobURLFn;
   }
 
   if (typeof FFmpeg !== "function" || typeof fetchFileFn !== "function") {
@@ -421,11 +424,23 @@ async function loadFFmpegRuntime() {
   });
 
   const ffmpegBaseURL = new URL("./ffmpeg/", window.location.href);
-  await state.ffmpeg.load({
-    coreURL: new URL("ffmpeg-core.js", ffmpegBaseURL).href,
-    wasmURL: new URL("ffmpeg-core.wasm", ffmpegBaseURL).href,
-    workerURL: new URL("814.ffmpeg.js", ffmpegBaseURL).href
-  });
+  let coreURL = new URL("ffmpeg-core.js", ffmpegBaseURL).href;
+  let wasmURL = new URL("ffmpeg-core.wasm", ffmpegBaseURL).href;
+  let workerURL = new URL("814.ffmpeg.js", ffmpegBaseURL).href;
+
+  if (typeof toBlobURLFn === "function") {
+    try {
+      [coreURL, wasmURL, workerURL] = await Promise.all([
+        toBlobURLFn(coreURL, "text/javascript"),
+        toBlobURLFn(wasmURL, "application/wasm"),
+        toBlobURLFn(workerURL, "text/javascript")
+      ]);
+    } catch {
+      // Fall back to direct absolute URLs.
+    }
+  }
+
+  await state.ffmpeg.load({ coreURL, wasmURL, workerURL });
 }
 
 function ensureScriptLoaded(src, id) {

@@ -143,7 +143,7 @@ a {
 
 .hero {
   text-align: center;
-  padding-top: 16px;
+  padding-top: 20px;
 }
 
 .hero h1 {
@@ -155,7 +155,7 @@ a {
 }
 
 .hero p {
-  margin: 0;
+  margin: 6px 0 18px;
   color: #878a94;
   font-size: 1rem;
 }
@@ -292,7 +292,7 @@ a {
 
 .file-view {
   width: min(800px, 100%);
-  margin: 48px auto 64px;
+  margin: 58px auto 86px;
   background: rgba(24, 24, 27, 0.62);
   border: 1px solid #25252a;
   border-radius: 16px;
@@ -781,7 +781,7 @@ a {
   }
 
   .file-view {
-    margin: 28px auto 40px;
+    margin: 34px auto 52px;
   }
 
   .file-item {
