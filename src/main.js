@@ -379,27 +379,38 @@ async function ensureFFmpeg() {
     state.ffmpegReady = true;
   } catch (error) {
     state.ffmpegLoadingPromise = null;
-    throw new Error("Unable to load FFmpeg assets from src/ffmpeg.");
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Unable to initialize FFmpeg runtime. ${reason}`);
   }
 }
 
 async function loadFFmpegRuntime() {
-  let FFmpeg;
-  let fetchFileFn;
+  let FFmpeg = null;
+  let fetchFileFn = null;
 
   try {
     const [ffmpegModule, utilModule] = await Promise.all([
       import("./ffmpeg/ffmpeg.js"),
       import("./ffmpeg/ffmpeg-util.js")
     ]);
-    FFmpeg = ffmpegModule.FFmpeg;
-    fetchFileFn = utilModule.fetchFile;
+    FFmpeg = ffmpegModule?.FFmpeg || null;
+    fetchFileFn = utilModule?.fetchFile || null;
   } catch {
-    throw new Error("FFmpeg runtime files are missing in src/ffmpeg. Upload works, but conversion needs those files restored.");
+    // Fallback to UMD script loading below.
   }
 
   if (typeof FFmpeg !== "function" || typeof fetchFileFn !== "function") {
-    throw new Error("FFmpeg runtime loaded with invalid exports.");
+    await Promise.all([
+      ensureScriptLoaded("./ffmpeg/ffmpeg.js", "ffmpeg-runtime"),
+      ensureScriptLoaded("./ffmpeg/ffmpeg-util.js", "ffmpeg-utils")
+    ]);
+
+    FFmpeg = globalThis.FFmpegWASM?.FFmpeg || globalThis.FFmpeg?.FFmpeg || null;
+    fetchFileFn = globalThis.FFmpegUtil?.fetchFile || null;
+  }
+
+  if (typeof FFmpeg !== "function" || typeof fetchFileFn !== "function") {
+    throw new Error("FFmpeg runtime could not be initialized from src/ffmpeg files.");
   }
 
   state.fetchFile = fetchFileFn;
@@ -409,10 +420,28 @@ async function loadFFmpegRuntime() {
     updateProgress();
   });
 
+  const ffmpegBaseURL = new URL("./ffmpeg/", window.location.href);
   await state.ffmpeg.load({
-    coreURL: "./ffmpeg/ffmpeg-core.js",
-    wasmURL: "./ffmpeg/ffmpeg-core.wasm",
-    workerURL: "./ffmpeg/814.ffmpeg.js"
+    coreURL: new URL("ffmpeg-core.js", ffmpegBaseURL).href,
+    wasmURL: new URL("ffmpeg-core.wasm", ffmpegBaseURL).href,
+    workerURL: new URL("814.ffmpeg.js", ffmpegBaseURL).href
+  });
+}
+
+function ensureScriptLoaded(src, id) {
+  const existing = document.getElementById(id);
+  if (existing) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.id = id;
+    script.src = src;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load runtime script: ${src}`));
+    document.head.appendChild(script);
   });
 }
 

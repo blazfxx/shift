@@ -138,7 +138,7 @@ a {
   grid-template-rows: auto 1fr;
   gap: 0;
   min-height: 0;
-  padding: 28px 32px 0;
+  padding: 28px 32px 20px;
 }
 
 .hero {
@@ -292,14 +292,15 @@ a {
 
 .file-view {
   width: min(800px, 100%);
-  margin: 0 auto;
+  margin: 48px auto 64px;
   background: rgba(24, 24, 27, 0.62);
   border: 1px solid #25252a;
   border-radius: 16px;
-  padding: 18px;
+  padding: 20px 18px 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  align-self: start;
   min-height: 0;
 }
 
@@ -746,7 +747,7 @@ a {
   }
 
   .page-main {
-    padding: 18px 18px 0;
+    padding: 18px 18px 14px;
   }
 
   .about-shell {
@@ -777,6 +778,10 @@ a {
 
   .dropzone {
     min-height: 240px;
+  }
+
+  .file-view {
+    margin: 28px auto 40px;
   }
 
   .file-item {
