@@ -423,24 +423,24 @@ async function loadFFmpegRuntime() {
     updateProgress();
   });
 
-  const ffmpegBaseURL = new URL("./ffmpeg/", window.location.href);
-  let coreURL = new URL("ffmpeg-core.js", ffmpegBaseURL).href;
-  let wasmURL = new URL("ffmpeg-core.wasm", ffmpegBaseURL).href;
-  let workerURL = new URL("814.ffmpeg.js", ffmpegBaseURL).href;
+  const coreAssetURL = new URL("/ffmpeg/ffmpeg-core.js", window.location.origin).href;
+  const wasmAssetURL = new URL("/ffmpeg/ffmpeg-core.wasm", window.location.origin).href;
+
+  let coreURL = coreAssetURL;
+  let wasmURL = wasmAssetURL;
 
   if (typeof toBlobURLFn === "function") {
     try {
       [coreURL, wasmURL, workerURL] = await Promise.all([
-        toBlobURLFn(coreURL, "text/javascript"),
-        toBlobURLFn(wasmURL, "application/wasm"),
-        toBlobURLFn(workerURL, "text/javascript")
+        toBlobURLFn(coreAssetURL, "text/javascript"),
+        toBlobURLFn(wasmAssetURL, "application/wasm")
       ]);
     } catch {
       // Fall back to direct absolute URLs.
     }
   }
 
-  await state.ffmpeg.load({ coreURL, wasmURL, workerURL });
+  await state.ffmpeg.load({ coreURL, wasmURL });
 }
 
 function ensureScriptLoaded(src, id) {
