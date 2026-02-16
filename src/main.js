@@ -100,8 +100,8 @@ class FileConverter {
 
       // Try to load FFmpeg with a timeout - now fully self-hosted on Vercel
       const loadPromise = (async () => {
-        const coreURL = 'ffmpeg/ffmpeg-core.js';
-        const wasmURL = 'ffmpeg/ffmpeg-core.wasm';
+        const coreURL = '/ffmpeg/ffmpeg-core.js';
+        const wasmURL = '/ffmpeg/ffmpeg-core.wasm';
 
         await this.ffmpeg.load({
           coreURL,
