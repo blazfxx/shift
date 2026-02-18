@@ -9,6 +9,8 @@
 [![X/Twitter](https://img.shields.io/badge/X-@boxudev-black.svg)](https://x.com/boxudev)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg)](https://discord.gg/cmPGdhXYxp)
 [![GitHub](https://img.shields.io/badge/GitHub-blazfxx-181717.svg)](https://github.com/blazfxx)
+[!][Preview](https://shift-boxu.vercel.app)
+
 
 A fast, privacy-focused file converter that runs entirely in your browser. No uploads, no servers, no tracking.
 
