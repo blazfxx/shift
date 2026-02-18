@@ -10,7 +10,7 @@
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg)](https://discord.gg/cmPGdhXYxp)
 [![GitHub](https://img.shields.io/badge/GitHub-blazfxx-181717.svg)](https://github.com/blazfxx)
 
-[![Preview](https://img.shields.io/badge/Preview-boxu.dev-blue.svg)]([https://github.com/blazfxx](https://shift-boxu.vercel.app))
+[![Preview](https://img.shields.io/badge/Preview-boxu.dev-blue.svg)](https://shift-boxu.vercel.app)
 
 A fast, privacy-focused file converter that runs entirely in your browser. No uploads, no servers, no tracking.
 
