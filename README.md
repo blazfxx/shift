@@ -267,5 +267,3 @@ This license allows sharing and adapting the work, requires attribution, and **p
 - [Cloudflare](https://www.cloudflare.com/) - Edge computing platform
 
 ---
-
-**Made with ❤️ for privacy-conscious users**
